@@ -1,17 +1,20 @@
-import React, { useEffect, useMemo, useState } from "react";
+import ct, { useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabaseClient";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from "recharts";
-import { COLORS, Card, Pill, statusTone, btnGhost, Modal, Field, inputStyle, btnPrimary, BODY_PARTS, SEVERITY, INJURY_STATUS, todayISO, addDays } from "./ui";
-import { Users, TrendingUp, ShieldAlert, Plus } from "lucide-react";
+import { COLORS, Card, Pill, statusTone, btnGhost, btnPrimary, Modal, Field, inputStyle, BODY_PARTS, SEVERITY, INJURY_STATUS, ACT_TYPES, ACT_STATUS, todayISO, addDays } from "./ui";
+import { Users, TrendingUp, ShieldAlert, Plus, ArrowLeft, Pencil, Trash2 } from "lucide-react";
 
 export default function AdminView() {
-  const [adminTab, setAdminTab] = useState("aktivitet");
+  const [adminTab, setAdminTab] = useState("spillere");
   const [players, setPlayers] = useState([]);
   const [activities, setActivities] = useState([]);
   const [injuries, setInjuries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showInjuryModal, setShowInjuryModal] = useState(false);
   const [editingInjury, setEditingInjury] = useState(null);
+  const [showActivityModal, setShowActivityModal] = useState(false);
+  const [editingActivity, setEditingActivity] = useState(null);
+  const [selectedPlayerId, setSelectedPlayerId] = useState(null);
 
   const loadAll = async () => {
     setLoading(true);
@@ -70,15 +73,38 @@ export default function AdminView() {
     setEditingInjury(null);
   };
 
+  const deleteInjury = async (id) => {
+    if (!window.confirm("Slette denne skaderegistreringen? Dette kan ikke angres.")) return;
+    const { error } = await supabase.from("injuries").delete().eq("id", id);
+    if (!error) setInjuries((prev) => prev.filter((i) => i.id !== id));
+  };
+
+  const saveActivity = async (payload) => {
+    if (editingActivity) {
+      const { data, error } = await supabase.from("activities").update(payload).eq("id", editingActivity.id).select();
+      if (!error && data) setActivities((prev) => prev.map((a) => (a.id === editingActivity.id ? data[0] : a)));
+    }
+    setShowActivityModal(false);
+    setEditingActivity(null);
+  };
+
+  const deleteActivity = async (id) => {
+    if (!window.confirm("Slette denne aktivitetsregistreringen? Dette kan ikke angres.")) return;
+    const { error } = await supabase.from("activities").delete().eq("id", id);
+    if (!error) setActivities((prev) => prev.filter((a) => a.id !== id));
+  };
+
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: COLORS.gray }}>Laster...</div>;
+
+  const selectedPlayer = players.find((p) => p.id === selectedPlayerId);
 
   return (
     <div>
       <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
-        {[["aktivitet", "Aktivitet", Users], ["spillform", "Spillform", TrendingUp], ["skader", "Skadekartlegging", ShieldAlert]].map(([key, label, Icon]) => (
+        {[["spillere", "Spillere", Users], ["aktivitet", "Aktivitet", TrendingUp], ["spillform", "Spillform", TrendingUp], ["skader", "Skadekartlegging", ShieldAlert]].map(([key, label, Icon]) => (
           <button
             key={key}
-            onClick={() => setAdminTab(key)}
+            onClick={() => { setAdminTab(key); setSelectedPlayerId(null); }}
             style={{
               display: "flex", alignItems: "center", gap: 6, border: "none", cursor: "pointer",
               borderRadius: 10, padding: "9px 15px", fontWeight: 600, fontSize: 14, fontFamily: "Inter, sans-serif",
@@ -91,6 +117,30 @@ export default function AdminView() {
           </button>
         ))}
       </div>
+
+      {adminTab === "spillere" && (
+        selectedPlayer ? (
+          <PlayerDetail
+            player={selectedPlayer}
+            activities={activities.filter((a) => a.player_id === selectedPlayer.id).sort((a, b) => (a.date < b.date ? 1 : -1))}
+            injuries={injuries.filter((i) => i.player_id === selectedPlayer.id).sort((a, b) => (a.dato < b.dato ? 1 : -1))}
+            onBack={() => setSelectedPlayerId(null)}
+            onEditActivity={(a) => { setEditingActivity(a); setShowActivityModal(true); }}
+            onDeleteActivity={deleteActivity}
+            onEditInjury={(i) => { setEditingInjury(i); setShowInjuryModal(true); }}
+            onDeleteInjury={deleteInjury}
+            onAddActivity={() => { setEditingActivity(null); setShowActivityModal(true); }}
+            onAddInjury={() => { setEditingInjury(null); setShowInjuryModal(true); }}
+          />
+        ) : (
+          <PlayerList
+            players={players}
+            activities={activities}
+            injuries={injuries}
+            onSelect={(id) => setSelectedPlayerId(id)}
+          />
+        )
+      )}
 
       {adminTab === "aktivitet" && (
         <>
@@ -117,7 +167,12 @@ export default function AdminView() {
           </Card>
           <Card>
             <div className="font-display" style={{ fontSize: 15, fontWeight: 600, marginBottom: 10 }}>Alle registreringer</div>
-            <ActivityTable activities={[...activities].sort((a, b) => (a.date < b.date ? 1 : -1))} playerName={playerName} />
+            <ActivityTable
+              activities={[...activities].sort((a, b) => (a.date < b.date ? 1 : -1))}
+              playerName={playerName}
+              onEdit={(a) => { setEditingActivity(a); setShowActivityModal(true); }}
+              onDelete={deleteActivity}
+            />
           </Card>
         </>
       )}
@@ -190,12 +245,16 @@ export default function AdminView() {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {[...injuries].sort((a, b) => (a.dato < b.dato ? 1 : -1)).map((i) => (
-                <div key={i.id} onClick={() => { setEditingInjury(i); setShowInjuryModal(true); }} style={{ cursor: "pointer", border: `1px solid ${COLORS.line}`, borderRadius: 10, padding: 12 }}>
+                <div key={i.id} style={{ border: `1px solid ${COLORS.line}`, borderRadius: 10, padding: 12 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
-                    <span style={{ fontSize: 13.5 }}><strong>{playerName(i.player_id)}</strong> — {i.body_part}</span>
-                    <div style={{ display: "flex", gap: 6 }}>
+                    <span style={{ fontSize: 13.5, cursor: "pointer" }} onClick={() => { setEditingInjury(i); setShowInjuryModal(true); }}>
+                      <strong>{playerName(i.player_id)}</strong> — {i.body_part}
+                    </span>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                       <Pill tone="gray">{i.alvorlighetsgrad}</Pill>
                       <Pill tone={statusTone(i.status)}>{i.status}</Pill>
+                      <IconButton icon={Pencil} onClick={() => { setEditingInjury(i); setShowInjuryModal(true); }} />
+                      <IconButton icon={Trash2} danger onClick={() => deleteInjury(i.id)} />
                     </div>
                   </div>
                   <div style={{ fontSize: 12, color: COLORS.gray, marginTop: 4 }}>
@@ -213,10 +272,150 @@ export default function AdminView() {
         <InjuryModalAdmin
           injury={editingInjury}
           players={players}
+          defaultPlayerId={selectedPlayerId}
           onClose={() => { setShowInjuryModal(false); setEditingInjury(null); }}
           onSave={saveInjury}
         />
       )}
+
+      {showActivityModal && editingActivity && (
+        <ActivityModalAdmin
+          activity={editingActivity}
+          playerName={playerName(editingActivity.player_id)}
+          onClose={() => { setShowActivityModal(false); setEditingActivity(null); }}
+          onSave={saveActivity}
+        />
+      )}
+    </div>
+  );
+}
+
+function IconButton({ icon: Icon, onClick, danger }) {
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      style={{
+        border: `1px solid ${COLORS.line}`, background: "#fff", borderRadius: 7, padding: 6,
+        cursor: "pointer", display: "flex", color: danger ? COLORS.red : COLORS.gray,
+      }}
+    >
+      <Icon size={14} />
+    </button>
+  );
+}
+
+function PlayerList({ players, activities, injuries, onSelect }) {
+  return (
+    <Card>
+      <div className="font-display" style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Tropp</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {players.map((p) => {
+          const playerActs = activities.filter((a) => a.player_id === p.id);
+          const playerInjs = injuries.filter((i) => i.player_id === p.id);
+          const activeInjury = playerInjs.some((i) => i.status !== "Frisk");
+          return (
+            <div
+              key={p.id}
+              onClick={() => onSelect(p.id)}
+              style={{
+                cursor: "pointer", border: `1px solid ${COLORS.line}`, borderRadius: 10, padding: 12,
+                display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8,
+              }}
+            >
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{p.full_name}</div>
+                <div style={{ fontSize: 12, color: COLORS.gray, marginTop: 2 }}>
+                  {p.position || "Ingen posisjon oppgitt"} · {playerActs.length} registreringer
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {activeInjury && <Pill tone="red">Skadet</Pill>}
+                <Pill tone="gray">Se detaljer →</Pill>
+              </div>
+            </div>
+          );
+        })}
+        {players.length === 0 && (
+          <div style={{ fontSize: 13.5, color: COLORS.gray, textAlign: "center", padding: "16px 0" }}>Ingen spillere registrert ennå.</div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+function PlayerDetail({ player, activities, injuries, onBack, onEditActivity, onDeleteActivity, onEditInjury, onDeleteInjury, onAddActivity, onAddInjury }) {
+  return (
+    <div>
+      <button onClick={onBack} style={{ ...btnGhost, display: "flex", alignItems: "center", gap: 6, marginBottom: 14 }}>
+        <ArrowLeft size={15} /> Tilbake til tropp
+      </button>
+
+      <Card style={{ marginBottom: 18 }}>
+        <div className="font-display" style={{ fontSize: 18, fontWeight: 700 }}>{player.full_name}</div>
+        <div style={{ fontSize: 13, color: COLORS.gray, marginTop: 2 }}>{player.position || "Ingen posisjon oppgitt"}</div>
+      </Card>
+
+      <Card style={{ marginBottom: 18 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div className="font-display" style={{ fontSize: 15, fontWeight: 600 }}>Aktiviteter</div>
+        </div>
+        {activities.length === 0 ? (
+          <div style={{ fontSize: 13.5, color: COLORS.gray, textAlign: "center", padding: "14px 0" }}>Ingen aktiviteter registrert.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {activities.map((a) => (
+              <div key={a.id} style={{ border: `1px solid ${COLORS.line}`, borderRadius: 10, padding: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
+                  <span style={{ fontSize: 13.5 }}>{new Date(a.date).toLocaleDateString("nb-NO")}</span>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <Pill tone={a.type === "Kamp" ? "amber" : "green"}>{a.type}</Pill>
+                    <Pill tone={statusTone(a.status)}>{a.status}</Pill>
+                    <IconButton icon={Pencil} onClick={() => onEditActivity(a)} />
+                    <IconButton icon={Trash2} danger onClick={() => onDeleteActivity(a.id)} />
+                  </div>
+                </div>
+                <div style={{ fontSize: 12.5, color: COLORS.gray, marginTop: 4 }}>
+                  {a.duration ? `${a.duration} min` : "—"}{a.spillform ? ` · Spillform ${a.spillform}/10` : ""}
+                </div>
+                {a.notat && <div style={{ fontSize: 13, marginTop: 6 }}>{a.notat}</div>}
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Card>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div className="font-display" style={{ fontSize: 15, fontWeight: 600 }}>Skader</div>
+          <button onClick={onAddInjury} style={{ ...btnGhost, display: "flex", alignItems: "center", gap: 6 }}>
+            <Plus size={15} /> Registrer skade
+          </button>
+        </div>
+        {injuries.length === 0 ? (
+          <div style={{ fontSize: 13.5, color: COLORS.gray, textAlign: "center", padding: "14px 0" }}>Ingen skader registrert.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {injuries.map((i) => (
+              <div key={i.id} style={{ border: `1px solid ${COLORS.line}`, borderRadius: 10, padding: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
+                  <span style={{ fontWeight: 700, fontSize: 14 }}>{i.body_part}</span>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <Pill tone="gray">{i.alvorlighetsgrad}</Pill>
+                    <Pill tone={statusTone(i.status)}>{i.status}</Pill>
+                    <IconButton icon={Pencil} onClick={() => onEditInjury(i)} />
+                    <IconButton icon={Trash2} danger onClick={() => onDeleteInjury(i.id)} />
+                  </div>
+                </div>
+                <div style={{ fontSize: 12.5, color: COLORS.gray, marginTop: 4 }}>
+                  Meldt {new Date(i.dato).toLocaleDateString("nb-NO")}
+                  {i.status !== "Frisk" && i.forventet_tilbake && ` · Forventet tilbake ${new Date(i.forventet_tilbake).toLocaleDateString("nb-NO")}`}
+                </div>
+                {i.notat && <div style={{ fontSize: 13, marginTop: 6 }}>{i.notat}</div>}
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
     </div>
   );
 }
@@ -231,7 +430,7 @@ function StatCard({ label, value, tone, small }) {
   );
 }
 
-function ActivityTable({ activities, playerName }) {
+function ActivityTable({ activities, playerName, onEdit, onDelete }) {
   if (activities.length === 0) return <div style={{ fontSize: 13.5, color: COLORS.gray, textAlign: "center", padding: 20 }}>Ingen registreringer.</div>;
   return (
     <div style={{ overflowX: "auto" }}>
@@ -244,6 +443,7 @@ function ActivityTable({ activities, playerName }) {
             <th style={{ padding: "8px 6px" }}>Status</th>
             <th style={{ padding: "8px 6px" }}>Varighet</th>
             <th style={{ padding: "8px 6px" }}>Spillform</th>
+            <th style={{ padding: "8px 6px" }}></th>
           </tr>
         </thead>
         <tbody>
@@ -255,6 +455,12 @@ function ActivityTable({ activities, playerName }) {
               <td style={{ padding: "8px 6px" }}><Pill tone={statusTone(a.status)}>{a.status}</Pill></td>
               <td style={{ padding: "8px 6px" }}>{a.duration ? `${a.duration} min` : "—"}</td>
               <td style={{ padding: "8px 6px" }}>{a.spillform ? `${a.spillform}/10` : "—"}</td>
+              <td style={{ padding: "8px 6px" }}>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <IconButton icon={Pencil} onClick={() => onEdit(a)} />
+                  <IconButton icon={Trash2} danger onClick={() => onDelete(a.id)} />
+                </div>
+              </td>
             </tr>
           ))}
         </tbody>
@@ -263,12 +469,12 @@ function ActivityTable({ activities, playerName }) {
   );
 }
 
-function InjuryModalAdmin({ injury, players, onClose, onSave }) {
+function InjuryModalAdmin({ injury, players, defaultPlayerId, onClose, onSave }) {
   const [form, setForm] = useState(
     injury
       ? { ...injury }
       : {
-          player_id: players[0]?.id,
+          player_id: defaultPlayerId || players[0]?.id,
           body_part: BODY_PARTS[0],
           dato: todayISO(),
           alvorlighetsgrad: "Lett",
@@ -315,3 +521,38 @@ function InjuryModalAdmin({ injury, players, onClose, onSave }) {
     </Modal>
   );
 }
+
+function ActivityModalAdmin({ activity, playerName, onClose, onSave }) {
+  const [form, setForm] = useState({ ...activity });
+  return (
+    <Modal title={`Rediger aktivitet — ${playerName}`} onClose={onClose}>
+      <Field label="Dato">
+        <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} style={inputStyle} />
+      </Field>
+      <Field label="Type">
+        <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} style={inputStyle}>
+          {ACT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+        </select>
+      </Field>
+      <Field label="Status">
+        <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} style={inputStyle}>
+          {ACT_STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+      </Field>
+      <Field label="Varighet (minutter)">
+        <input type="number" min={0} value={form.duration || 0} onChange={(e) => setForm({ ...form, duration: Number(e.target.value) })} style={inputStyle} />
+      </Field>
+      <Field label={`Spillform (1–10): ${form.spillform || "—"}`}>
+        <input type="range" min={1} max={10} value={form.spillform || 5} onChange={(e) => setForm({ ...form, spillform: Number(e.target.value) })} style={{ width: "100%" }} />
+      </Field>
+      <Field label="Notat (valgfritt)">
+        <textarea rows={3} value={form.notat || ""} onChange={(e) => setForm({ ...form, notat: e.target.value })} style={{ ...inputStyle, resize: "vertical" }} />
+      </Field>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 6 }}>
+        <button onClick={onClose} style={btnGhost}>Avbryt</button>
+        <button onClick={() => onSave(form)} style={btnPrimary}>Lagre</button>
+      </div>
+    </Modal>
+  );
+}
+Rea
