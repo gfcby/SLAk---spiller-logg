@@ -51,9 +51,7 @@ export default function Login() {
     >
       <div style={{ width: "100%", maxWidth: 380 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 22, justifyContent: "center" }}>
-          <div style={{ width: 34, height: 34, borderRadius: 8, background: COLORS.green, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Activity size={18} color={COLORS.pitchDark} />
-          </div>
+             <img src="/logo.jpg" alt="SpillerLogg" style={{ width: 40, height: 40, borderRadius: 8, objectFit: "cover" }} />
           <div className="font-display" style={{ fontSize: 22, fontWeight: 700, color: COLORS.pitchDark }}>SPILLERLOGG</div>
         </div>
 
