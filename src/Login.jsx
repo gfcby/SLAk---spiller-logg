@@ -6,7 +6,6 @@ import { Activity } from "lucide-react";
 export default function Login() {
   const [mode, setMode] = useState("login"); // 'login' | 'signup'
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState("spiller");
   const [position, setPosition] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -32,7 +31,7 @@ export default function Login() {
       email,
       password,
       options: {
-        data: { full_name: fullName, role, position },
+        data: { full_name: fullName, role: "spiller", position },
       },
     });
     if (error) {
@@ -99,17 +98,9 @@ export default function Login() {
               <Field label="Fullt navn">
                 <input required value={fullName} onChange={(e) => setFullName(e.target.value)} style={inputStyle} />
               </Field>
-              <Field label="Rolle">
-                <select value={role} onChange={(e) => setRole(e.target.value)} style={inputStyle}>
-                  <option value="spiller">Spiller</option>
-                  <option value="admin">Administrator</option>
-                </select>
+              <Field label="Posisjon (valgfritt)">
+                <input value={posisjon} onChange={(e) => setPosisjon(e.target.value)} style={inputStyle} placeholder="f.eks. Midtbane" />
               </Field>
-              {role === "spiller" && (
-                <Field label="Posisjon (valgfritt)">
-                  <input value={position} onChange={(e) => setPosition(e.target.value)} style={inputStyle} placeholder="f.eks. Midtbane" />
-                </Field>
-              )}
               <Field label="E-post">
                 <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} />
               </Field>
@@ -124,8 +115,7 @@ export default function Login() {
         </Card>
 
         <div style={{ fontSize: 12, color: COLORS.gray, textAlign: "center", marginTop: 14, lineHeight: 1.5 }}>
-          Merk: her kan man selv velge «Administrator» ved registrering for enkel testing.
-          I skarp drift bør admin-rollen tildeles manuelt i Supabase i stedet — se README.
+                   Nye kontoer opprettes automatisk som spiller. Administrator-tilgang tildeles manuelt av trener/leder i Supabase.
         </div>
       </div>
     </div>
