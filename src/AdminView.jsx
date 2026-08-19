@@ -1,4 +1,4 @@
-import ct, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabaseClient";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from "recharts";
 import { COLORS, Card, Pill, statusTone, btnGhost, btnPrimary, Modal, Field, inputStyle, BODY_PARTS, SEVERITY, INJURY_STATUS, ACT_TYPES, ACT_STATUS, todayISO, addDays } from "./ui";
