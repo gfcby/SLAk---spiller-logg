@@ -99,7 +99,7 @@ export default function Login() {
                 <input required value={fullName} onChange={(e) => setFullName(e.target.value)} style={inputStyle} />
               </Field>
               <Field label="Posisjon (valgfritt)">
-                <input value={posisjon} onChange={(e) => setPosisjon(e.target.value)} style={inputStyle} placeholder="f.eks. Midtbane" />
+                <input value={position} onChange={(e) => setPosition(e.target.value)} style={inputStyle} placeholder="f.eks. Midtbane" />
               </Field>
               <Field label="E-post">
                 <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} />
