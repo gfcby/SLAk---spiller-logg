@@ -66,9 +66,7 @@ export default function App() {
       <div style={{ background: COLORS.pitchDark, color: "#fff" }}>
         <div style={{ maxWidth: 1040, margin: "0 auto", padding: "16px 20px", display: "flex", flexWrap: "wrap", gap: 14, alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 8, background: COLORS.green, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Activity size={18} color={COLORS.pitchDark} />
-            </div>
+               <img src="/logo.jpg" alt="SpillerLogg" style={{ width: 34, height: 34, borderRadius: 8, objectFit: "cover" }} />
             <div>
               <div className="font-display" style={{ fontSize: 20, fontWeight: 700, lineHeight: 1 }}>SPILLERLOGG</div>
               <div style={{ fontSize: 11.5, color: "#BFE3D2", marginTop: 2 }}>
