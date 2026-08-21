@@ -7,6 +7,7 @@ export default function Login() {
   const [mode, setMode] = useState("login"); // 'login' | 'signup'
   const [fullName, setFullName] = useState("");
   const [position, setPosition] = useState("");
+  const [birthYear, setBirthYear] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -31,7 +32,7 @@ export default function Login() {
       email,
       password,
       options: {
-        data: { full_name: fullName, role: "spiller", position },
+        data: { full_name: fullName, role: "spiller", position, birth_year: birthYear },
       },
     });
     if (error) {
@@ -50,7 +51,7 @@ export default function Login() {
     >
       <div style={{ width: "100%", maxWidth: 380 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 22, justifyContent: "center" }}>
-             <img src="/logo.jpg" alt="SpillerLogg" style={{ width: 40, height: 40, borderRadius: 8, objectFit: "cover" }} />
+          <img src="/logo.jpg" alt="SpillerLogg" style={{ width: 40, height: 40, borderRadius: 8, objectFit: "cover" }} />
           <div className="font-display" style={{ fontSize: 22, fontWeight: 700, color: COLORS.pitchDark }}>SPILLERLOGG</div>
         </div>
 
@@ -98,6 +99,18 @@ export default function Login() {
               <Field label="Fullt navn">
                 <input required value={fullName} onChange={(e) => setFullName(e.target.value)} style={inputStyle} />
               </Field>
+              <Field label="Fødselsår">
+                <input
+                  type="number"
+                  required
+                  min={1950}
+                  max={2020}
+                  value={birthYear}
+                  onChange={(e) => setBirthYear(e.target.value)}
+                  style={inputStyle}
+                  placeholder="f.eks. 2008"
+                />
+              </Field>
               <Field label="Posisjon (valgfritt)">
                 <input value={position} onChange={(e) => setPosition(e.target.value)} style={inputStyle} placeholder="f.eks. Midtbane" />
               </Field>
@@ -115,7 +128,7 @@ export default function Login() {
         </Card>
 
         <div style={{ fontSize: 12, color: COLORS.gray, textAlign: "center", marginTop: 14, lineHeight: 1.5 }}>
-                   Nye kontoer opprettes automatisk som spiller. Administrator-tilgang tildeles manuelt av trener/leder i Supabase.
+          Nye kontoer opprettes automatisk som spiller. Administrator-tilgang tildeles manuelt av trener/leder i Supabase.
         </div>
       </div>
     </div>
