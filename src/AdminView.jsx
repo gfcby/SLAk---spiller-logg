@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabaseClient";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from "recharts";
 import { COLORS, Card, Pill, statusTone, btnGhost, btnPrimary, Modal, Field, inputStyle, BODY_PARTS, SEVERITY, INJURY_STATUS, ACT_TYPES, ACT_STATUS, todayISO, addDays } from "./ui";
-import { Users, TrendingUp, ShieldAlert, Plus, ArrowLeft, Pencil, Trash2 } from "lucide-react";
+import { Users, TrendingUp, ShieldAlert, Plus, ArrowLeft, Pencil, Trash2, UserMinus, UserCheck } from "lucide-react";
 
 export default function AdminView() {
   const [adminTab, setAdminTab] = useState("spillere");
@@ -15,6 +15,7 @@ export default function AdminView() {
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [editingActivity, setEditingActivity] = useState(null);
   const [selectedPlayerId, setSelectedPlayerId] = useState(null);
+  const [showRemoved, setShowRemoved] = useState(false);
 
   const loadAll = async () => {
     setLoading(true);
@@ -33,20 +34,22 @@ export default function AdminView() {
 
   const playerName = (id) => players.find((p) => p.id === id)?.full_name || "Ukjent";
 
+  const activePlayers = useMemo(() => players.filter((p) => p.active !== false), [players]);
+
   const totalSessions = activities.filter((a) => a.status === "Gjennomført").length;
   const totalAbsence = activities.filter((a) => a.status === "Fravær").length;
 
-  const sessionsPerPlayer = useMemo(() => players.map((p) => ({
+  const sessionsPerPlayer = useMemo(() => activePlayers.map((p) => ({
     name: p.full_name.split(" ")[0],
     Trening: activities.filter((a) => a.player_id === p.id && a.type === "Trening" && a.status === "Gjennomført").length,
     Kamp: activities.filter((a) => a.player_id === p.id && a.type === "Kamp" && a.status === "Gjennomført").length,
-  })), [players, activities]);
+  })), [activePlayers, activities]);
 
-  const avgFormPerPlayer = useMemo(() => players.map((p) => {
+  const avgFormPerPlayer = useMemo(() => activePlayers.map((p) => {
     const vals = activities.filter((a) => a.player_id === p.id && a.spillform != null).map((a) => a.spillform);
     const avg = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0;
     return { name: p.full_name.split(" ")[0], Spillform: Math.round(avg * 10) / 10 };
-  }), [players, activities]);
+  }), [activePlayers, activities]);
 
   const lowFormAlerts = useMemo(() => activities
     .filter((a) => a.spillform != null && a.spillform <= 4)
@@ -94,6 +97,16 @@ export default function AdminView() {
     if (!error) setActivities((prev) => prev.filter((a) => a.id !== id));
   };
 
+  const togglePlayerActive = async (player) => {
+    const nextActive = player.active === false ? true : false;
+    const confirmMsg = nextActive
+      ? `Ta ${player.full_name} tilbake i troppen?`
+      : `Fjerne ${player.full_name} fra troppen? All historikk beholdes, men spilleren vises ikke lenger i aktive lister.`;
+    if (!window.confirm(confirmMsg)) return;
+    const { data, error } = await supabase.from("profiles").update({ active: nextActive }).eq("id", player.id).select();
+    if (!error && data) setPlayers((prev) => prev.map((p) => (p.id === player.id ? data[0] : p)));
+  };
+
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: COLORS.gray }}>Laster...</div>;
 
   const selectedPlayer = players.find((p) => p.id === selectedPlayerId);
@@ -129,15 +142,18 @@ export default function AdminView() {
             onDeleteActivity={deleteActivity}
             onEditInjury={(i) => { setEditingInjury(i); setShowInjuryModal(true); }}
             onDeleteInjury={deleteInjury}
-            onAddActivity={() => { setEditingActivity(null); setShowActivityModal(true); }}
             onAddInjury={() => { setEditingInjury(null); setShowInjuryModal(true); }}
+            onToggleActive={() => togglePlayerActive(selectedPlayer)}
           />
         ) : (
           <PlayerList
             players={players}
             activities={activities}
             injuries={injuries}
+            showRemoved={showRemoved}
+            setShowRemoved={setShowRemoved}
             onSelect={(id) => setSelectedPlayerId(id)}
+            onToggleActive={togglePlayerActive}
           />
         )
       )}
@@ -147,7 +163,7 @@ export default function AdminView() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 18 }}>
             <StatCard label="Gjennomførte økter" value={totalSessions} tone="green" />
             <StatCard label="Registrert fravær" value={totalAbsence} tone="red" />
-            <StatCard label="Spillere i tropp" value={players.length} tone="gray" />
+            <StatCard label="Spillere i tropp" value={activePlayers.length} tone="gray" />
           </div>
           <Card style={{ marginBottom: 18 }}>
             <div className="font-display" style={{ fontSize: 15, fontWeight: 600, marginBottom: 10 }}>Økter per spiller</div>
@@ -304,12 +320,22 @@ function IconButton({ icon: Icon, onClick, danger }) {
   );
 }
 
-function PlayerList({ players, activities, injuries, onSelect }) {
+function PlayerList({ players, activities, injuries, showRemoved, setShowRemoved, onSelect, onToggleActive }) {
+  const visible = players.filter((p) => (showRemoved ? p.active === false : p.active !== false));
+  const removedCount = players.filter((p) => p.active === false).length;
+
   return (
     <Card>
-      <div className="font-display" style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Tropp</div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+        <div className="font-display" style={{ fontSize: 15, fontWeight: 600 }}>{showRemoved ? "Fjernede spillere" : "Tropp"}</div>
+        {removedCount > 0 && (
+          <button onClick={() => setShowRemoved(!showRemoved)} style={{ ...btnGhost, fontSize: 12.5, padding: "6px 12px" }}>
+            {showRemoved ? "← Tilbake til tropp" : `Vis fjernede (${removedCount})`}
+          </button>
+        )}
+      </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {players.map((p) => {
+        {visible.map((p) => {
           const playerActs = activities.filter((a) => a.player_id === p.id);
           const playerInjs = injuries.filter((i) => i.player_id === p.id);
           const activeInjury = playerInjs.some((i) => i.status !== "Frisk");
@@ -320,30 +346,37 @@ function PlayerList({ players, activities, injuries, onSelect }) {
               style={{
                 cursor: "pointer", border: `1px solid ${COLORS.line}`, borderRadius: 10, padding: 12,
                 display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8,
+                opacity: p.active === false ? 0.65 : 1,
               }}
             >
               <div>
                 <div style={{ fontWeight: 700, fontSize: 14 }}>{p.full_name}</div>
                 <div style={{ fontSize: 12, color: COLORS.gray, marginTop: 2 }}>
-                  {p.position || "Ingen posisjon oppgitt"} · {playerActs.length} registreringer
+                  {p.position || "Ingen posisjon oppgitt"}{p.birth_year ? ` · ${p.birth_year}-kullet` : ""} · {playerActs.length} registreringer
                 </div>
               </div>
-              <div style={{ display: "flex", gap: 6 }}>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                 {activeInjury && <Pill tone="red">Skadet</Pill>}
-                <Pill tone="gray">Se detaljer →</Pill>
+                {p.active === false && <Pill tone="gray">Fjernet</Pill>}
+                <IconButton
+                  icon={p.active === false ? UserCheck : UserMinus}
+                  onClick={() => onToggleActive(p)}
+                />
               </div>
             </div>
           );
         })}
-        {players.length === 0 && (
-          <div style={{ fontSize: 13.5, color: COLORS.gray, textAlign: "center", padding: "16px 0" }}>Ingen spillere registrert ennå.</div>
+        {visible.length === 0 && (
+          <div style={{ fontSize: 13.5, color: COLORS.gray, textAlign: "center", padding: "16px 0" }}>
+            {showRemoved ? "Ingen fjernede spillere." : "Ingen spillere registrert ennå."}
+          </div>
         )}
       </div>
     </Card>
   );
 }
 
-function PlayerDetail({ player, activities, injuries, onBack, onEditActivity, onDeleteActivity, onEditInjury, onDeleteInjury, onAddActivity, onAddInjury }) {
+function PlayerDetail({ player, activities, injuries, onBack, onEditActivity, onDeleteActivity, onEditInjury, onDeleteInjury, onAddInjury, onToggleActive }) {
   return (
     <div>
       <button onClick={onBack} style={{ ...btnGhost, display: "flex", alignItems: "center", gap: 6, marginBottom: 14 }}>
@@ -351,8 +384,24 @@ function PlayerDetail({ player, activities, injuries, onBack, onEditActivity, on
       </button>
 
       <Card style={{ marginBottom: 18 }}>
-        <div className="font-display" style={{ fontSize: 18, fontWeight: 700 }}>{player.full_name}</div>
-        <div style={{ fontSize: 13, color: COLORS.gray, marginTop: 2 }}>{player.position || "Ingen posisjon oppgitt"}</div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+          <div>
+            <div className="font-display" style={{ fontSize: 18, fontWeight: 700 }}>{player.full_name}</div>
+            <div style={{ fontSize: 13, color: COLORS.gray, marginTop: 2 }}>
+              {player.position || "Ingen posisjon oppgitt"}{player.birth_year ? ` · ${player.birth_year}-kullet` : ""}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {player.active === false && <Pill tone="gray">Fjernet fra tropp</Pill>}
+            <button
+              onClick={onToggleActive}
+              style={{ ...btnGhost, display: "flex", alignItems: "center", gap: 6, color: player.active === false ? COLORS.pitchMid : COLORS.red, borderColor: player.active === false ? COLORS.green : COLORS.redSoft }}
+            >
+              {player.active === false ? <UserCheck size={15} /> : <UserMinus size={15} />}
+              {player.active === false ? "Ta tilbake i tropp" : "Fjern fra tropp"}
+            </button>
+          </div>
+        </div>
       </Card>
 
       <Card style={{ marginBottom: 18 }}>
@@ -555,4 +604,3 @@ function ActivityModalAdmin({ activity, playerName, onClose, onSave }) {
     </Modal>
   );
 }
-
